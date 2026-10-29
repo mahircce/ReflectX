@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ReflectX - Mobile Laser Puzzle</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background: #0b0f19;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        .app-container {
+            width: 100%;
+            max-width: 420px;
+            background: #131b2e;
+            border: 2px solid #1e293b;
+            border-radius: 16px;
+            padding: 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            text-align: center;
+        }
+        h1 {
+            font-size: 24px;
+            color: #38bdf8;
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+            margin-bottom: 8px;
+        }
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            background: #0f172a;
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            font-weight: bold;
+            border: 1px solid #334155;
+        }
+        .hud span {
+            color: #facc15;
+        }
+        canvas {
+            width: 100%;
+            height: auto;
+            background: #090d16;
+            border: 2px solid #38bdf8;
+            border-radius: 10px;
+            touch-action: none;
+            display: block;
+        }
+        .controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            justify-content: center;
+        }
+        button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            background: #2563eb;
+            color: white;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        .btn-warn { background: #d97706; }
+        .btn-success { background: #16a34a; }
+        .btn-secondary { background: #475569; }
+
+        /* স্ক্রিনসমূহ */
+        .screen { display: none; }
+        .screen.active { display: block; }
+
+        input[type="text"] {
+            width: 85%;
+            padding: 10px;
+            margin: 12px 0;
+            border-radius: 8px;
+            border: 1px solid #38bdf8;
+            background: #0f172a;
+            color: #fff;
+            font-size: 15px;
+            text-align: center;
+        }
+        .menu-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .leaderboard-list {
+            max-height: 250px;
+            overflow-y: auto;
+            margin: 12px 0;
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 8px;
+            border: 1px solid #334155;
+        }
+        .lb-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 10px;
+            border-bottom: 1px solid #1e293b;
+            font-size: 14px;
+        }
+        .lb-row:first-child { color: #facc15; font-weight: bold; }
+        .msg-bar {
+            margin-top: 8px;
+            font-size: 14px;
+            min-height: 22px;
+            color: #4ade80;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h1>ReflectX</h1>
+
+    <!-- ১. মেইন মেনু স্ক্রিন -->
+    <div id="menuScreen" class="screen active">
+        <p style="color:#94a3b8; font-size:14px;">2D লেজার রিফ্লেকশন পাজল গেম</p>
+        <input type="text" id="playerNameInput" placeholder="আপনার নাম লিখুন..." maxlength="15">
+        <div class="menu-btns">
+            <button class="btn-success" onclick="startGame()">খেলুন (Play Game)</button>
+            <button onclick="showScreen('leaderboardScreen')">লিডারবোর্ড (Leaderboard)</button>
+            <button class="btn-secondary" onclick="showScreen('infoScreen')">নিয়মাবলী (Instructions)</button>
+        </div>
+    </div>
+
+    <!-- ২. গেমপ্লে স্ক্রিন -->
+    <div id="gameScreen" class="screen">
+        <div class="hud">
+            <div>লেভেল: <span id="lvlText">1</span></div>
+            <div>মুভ: <span id="moveText">0</span></div>
+            <div>স্কোর: <span id="scoreText">0</span></div>
+        </div>
+        <canvas id="gameCanvas" width="400" height="320"></canvas>
+        <div id="statusMsg" class="msg-bar">মিররে ট্যাপ করে লেজার টার্গেটে পাঠান!</div>
+        <div class="controls">
+            <button class="btn-warn" onclick="restartLevel()">রিস্টার্ট</button>
+            <button id="nextBtn" class="btn-success" onclick="nextLevel()" style="display:none;">পরের লেভেল ➔</button>
+            <button class="btn-secondary" onclick="saveAndExit()">মেনু</button>
+        </div>
+    </div>
+
+    <!-- ৩. লিডারবোর্ড স্ক্রিন -->
+    <div id="leaderboardScreen" class="screen">
+        <h3 style="color:#facc15; margin-bottom:6px;">🏆 সেরা খেলোয়াড়দের তালিকা</h3>
+        <div id="lbContainer" class="leaderboard-list"></div>
+        <div class="controls">
+            <button class="btn-secondary" onclick="showScreen('menuScreen')">ফিরে যান</button>
+        </div>
+    </div>
+
+    <!-- ৪. নিয়মাবলী স্ক্রিন -->
+    <div id="infoScreen" class="screen">
+        <h3 style="color:#38bdf8; margin-bottom:10px;">খেলার নিয়মাবলী</h3>
+        <div style="text-align:left; font-size:14px; line-height:1.6; color:#cbd5e1; background:#0f172a; padding:12px; border-radius:8px;">
+            <p>• নীল রঙের সোর্স থেকে লেজার রশ্মি বের হয়।</p>
+            <p>• গ্রিডে থাকা মিররের (<b>/</b> বা <b>\</b>) ওপর ট্যাপ করলে সেটি ৯০ ডিগ্রি ঘুরবে।</p>
+            <p>• লাল দেয়াল এড়িয়ে লেজারটিকে গোল টার্গেটে পৌঁছাতে হবে।</p>
+            <p>• কম মুভে সমাধান করলে বেশি বোনাস পয়েন্ট ও ৩-স্টার রেটিং পাবেন!</p>
+        </div>
+        <div class="controls">
+            <button class="btn-secondary" onclick="showScreen('menuScreen')">ফিরে যান</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const ROWS = 8, COLS = 10, CELL = 40;
+const EMPTY = 0, WALL = 1, SOURCE = 2, TARGET = 3, MIRROR_SLASH = 4, MIRROR_BACKSLASH = 5;
+const DIR_RIGHT = 0, DIR_DOWN = 1, DIR_LEFT = 2, DIR_UP = 3;
+
+let grid = [];
+let currentLevel = 1;
+let moves = 0;
+let totalScore = 0;
+let playerName = "Player";
+let levelSolved = false;
+
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// প্রথম ৩টি বেসিক লেভেল
+const presetLevels = [
+    [
+        [1,1,1,1,1,1,1,1,1,1],
+        [1,2,0,0,0,4,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1],
+        [1,0,1,1,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,1],
+        [1,0,1,0,0,4,0,0,3,1],
+        [1,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1]
+    ],
+    [
+        [1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,0,0,1],
+        [1,0,1,0,5,0,0,4,0,1],
+        [1,0,0,0,0,0,1,0,0,1],
+        [1,0,0,0,0,0,0,0,1,1],
+        [1,0,0,0,0,3,0,5,0,1],
+        [1,2,0,0,5,0,1,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1]
+    ],
+    [
+        [1,1,1,1,1,1,1,1,1,1],
+        [1,2,0,0,4,0,1,0,0,1],
+        [1,0,1,0,0,0,0,3,0,1],
+        [1,0,0,0,0,1,0,0,0,1],
+        [1,0,5,0,5,0,0,0,0,1],
+        [1,0,0,0,0,1,0,0,0,1],
+        [1,0,4,0,0,0,0,5,0,1],
+        [1,1,1,1,1,1,1,1,1,1]
+    ]
+];
+
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if (id === 'leaderboardScreen') renderLeaderboard();
+}
+
+function startGame() {
+    const nameVal = document.getElementById("playerNameInput").value.trim();
+    playerName = nameVal ? nameVal : "গেমার";
+    currentLevel = 1;
+    totalScore = 0;
+    loadLevel(currentLevel);
+    showScreen('gameScreen');
+}
+
+function loadLevel(lvl) {
+    moves = 0;
+    levelSolved = false;
+    document.getElementById("nextBtn").style.display = "none";
+    document.getElementById("statusMsg").style.color = "#38bdf8";
+    document.getElementById("statusMsg").innerText = "মিররে ট্যাপ করে লেজার টার্গেটে পাঠান!";
+
+    if (lvl <= 3) {
+        grid = presetLevels[lvl - 1].map(row => [...row]);
+    } else {
+        generateAutoLevel();
+    }
+    updateHUD();
+    drawBoard();
+}
+
+// অটোমেটিক আনলিমিটেড লেভেল জেনারেটর
+function generateAutoLevel() {
+    while (true) {
+        grid = Array.from({ length: ROWS }, (_, r) =>
+            Array.from({ length: COLS }, (_, c) =>
+                (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) ? WALL : EMPTY
+            )
+        );
+        let onPath = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
+
+        let r = 1 + Math.floor(Math.random() * (ROWS - 2));
+        let c = 1;
+        grid[r][c] = SOURCE;
+        onPath[r][c] = true;
+
+        let dir = DIR_RIGHT;
+        let turns = 3 + Math.floor(Math.random() * 3);
+        let ok = true;
+
+        for (let t = 0; t < turns; t++) {
+            let maxS = 0, tr = r, tc = c;
+            while (true) {
+                if (dir === DIR_RIGHT) tc++;
+                else if (dir === DIR_LEFT) tc--;
+                else if (dir === DIR_UP) tr--;
+                else if (dir === DIR_DOWN) tr++;
+                if (tr <= 0 || tr >= ROWS - 1 || tc <= 0 || tc >= COLS - 1 || onPath[tr][tc]) break;
+                maxS++;
+            }
+            if (maxS < 1) { ok = false; break; }
+
+            let steps = 1 + Math.floor(Math.random() * maxS);
+            for (let s = 0; s < steps; s++) {
+                if (dir === DIR_RIGHT) c++;
+                else if (dir === DIR_LEFT) c--;
+                else if (dir === DIR_UP) r--;
+                else if (dir === DIR_DOWN) r++;
+                onPath[r][c] = true;
+            }
+
+            if (t === turns - 1) {
+                grid[r][c] = TARGET;
+            } else {
+                dir = (dir === DIR_RIGHT || dir === DIR_LEFT)
+                    ? (Math.random() < 0.5 ? DIR_UP : DIR_DOWN)
+                    : (Math.random() < 0.5 ? DIR_LEFT : DIR_RIGHT);
+                grid[r][c] = Math.random() < 0.5 ? MIRROR_SLASH : MIRROR_BACKSLASH;
+            }
+        }
+        if (!ok) continue;
+
+        // র‍্যান্ডম দেয়াল যোগ করা
+        for (let i = 0; i < 6; i++) {
+            let wr = 1 + Math.floor(Math.random() * (ROWS - 2));
+            let wc = 1 + Math.floor(Math.random() * (COLS - 2));
+            if (!onPath[wr][wc] && grid[wr][wc] === EMPTY) grid[wr][wc] = WALL;
+        }
+
+        // মিরর র‍্যান্ডমলি ঘুরিয়ে দেওয়া
+        for (let i = 0; i < ROWS; i++) {
+            for (let j = 0; j < COLS; j++) {
+                if (grid[i][j] === MIRROR_SLASH || grid[i][j] === MIRROR_BACKSLASH) {
+                    grid[i][j] = Math.random() < 0.5 ? MIRROR_SLASH : MIRROR_BACKSLASH;
+                }
+            }
+        }
+
+        let res = traceLaser();
+        if (!res.hit) break;
+    }
+}
+
+function traceLaser() {
+    let path = [];
+    let hit = false;
+    let sr = -1, sc = -1;
+
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            if (grid[r][c] === SOURCE) { sr = r; sc = c; break; }
+        }
+    }
+    if (sr === -1) return { path, hit };
+
+    let r = sr, c = sc, dir = DIR_RIGHT;
+    path.push({ r, c });
+
+    for (let step = 0; step < 100; step++) {
+        if (dir === DIR_RIGHT) c++;
+        else if (dir === DIR_LEFT) c--;
+        else if (dir === DIR_UP) r--;
+        else if (dir === DIR_DOWN) r++;
+
+        if (r < 0 || r >= ROWS || c < 0 || c >= COLS) break;
+        path.push({ r, c });
+
+        let cell = grid[r][c];
+        if (cell === WALL || cell === SOURCE) break;
+        if (cell === TARGET) { hit = true; break; }
+        if (cell === MIRROR_SLASH) {
+            if (dir === DIR_RIGHT) dir = DIR_UP;
+            else if (dir === DIR_LEFT) dir = DIR_DOWN;
+            else if (dir === DIR_UP) dir = DIR_RIGHT;
+            else if (dir === DIR_DOWN) dir = DIR_LEFT;
+        } else if (cell === MIRROR_BACKSLASH) {
+            if (dir === DIR_RIGHT) dir = DIR_DOWN;
+            else if (dir === DIR_LEFT) dir = DIR_UP;
+            else if (dir === DIR_UP) dir = DIR_LEFT;
+            else if (dir === DIR_DOWN) dir = DIR_RIGHT;
+        }
+    }
+    return { path, hit };
+}
+
+function drawBoard() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let { path, hit } = traceLaser();
+
+    // গ্রিড ও অবজেক্ট আঁকা
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            let x = c * CELL, y = r * CELL;
+            ctx.strokeStyle = "#1e293b";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, CELL, CELL);
+
+            let cell = grid[r][c];
+            if (cell === WALL) {
+                ctx.fillStyle = "#ef4444";
+                ctx.fillRect(x + 4, y + 4, CELL - 8, CELL - 8);
+            } else if (cell === SOURCE) {
+                ctx.fillStyle = "#06b6d4";
+                ctx.fillRect(x + 6, y + 8, CELL - 12, CELL - 16);
+            } else if (cell === TARGET) {
+                ctx.beginPath();
+                ctx.arc(x + CELL / 2, y + CELL / 2, 13, 0, Math.PI * 2);
+                ctx.fillStyle = hit ? "#22c55e" : "#94a3b8";
+                ctx.fill();
+            } else if (cell === MIRROR_SLASH || cell === MIRROR_BACKSLASH) {
+                ctx.strokeStyle = "#38bdf8";
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                if (cell === MIRROR_SLASH) {
+                    ctx.moveTo(x + 8, y + CELL - 8);
+                    ctx.lineTo(x + CELL - 8, y + 8);
+                } else {
+                    ctx.moveTo(x + 8, y + 8);
+                    ctx.lineTo(x + CELL - 8, y + CELL - 8);
+                }
+                ctx.stroke();
+            }
+        }
+    }
+
+    // লেজার রশ্মি আঁকা
+    if (path.length > 1) {
+        ctx.strokeStyle = "#f43f5e";
+        ctx.lineWidth = 3;
+        ctx.shadowColor = "#f43f5e";
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.moveTo(path[0].c * CELL + CELL / 2, path[0].r * CELL + CELL / 2);
+        for (let i = 1; i < path.length; i++) {
+            ctx.lineTo(path[i].c * CELL + CELL / 2, path[i].r * CELL + CELL / 2);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+
+    if (hit && !levelSolved) {
+        levelSolved = true;
+        let earned = Math.max(20, 100 - (moves - 1) * 10);
+        let stars = moves <= 3 ? "⭐⭐⭐" : (moves <= 6 ? "⭐⭐" : "⭐");
+        totalScore += earned;
+        updateHUD();
+        saveScoreToLeaderboard();
+        document.getElementById("statusMsg").style.color = "#4ade80";
+        document.getElementById("statusMsg").innerText = `সমাধান সম্পন্ন! ${stars} (+${earned} পয়েন্ট)`;
+        document.getElementById("nextBtn").style.display = "block";
+    }
+}
+
+// মোবাইলে টাচ বা মাউস ক্লিক ইভেন্ট
+canvas.addEventListener("pointerdown", function(e) {
+    if (levelSolved) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+
+    const c = Math.floor(x / CELL);
+    const r = Math.floor(y / CELL);
+
+    if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+        if (grid[r][c] === MIRROR_SLASH) {
+            grid[r][c] = MIRROR_BACKSLASH;
+            moves++;
+            updateHUD();
+            drawBoard();
+        } else if (grid[r][c] === MIRROR_BACKSLASH) {
+            grid[r][c] = MIRROR_SLASH;
+            moves++;
+            updateHUD();
+            drawBoard();
+        }
+    }
+});
+
+function updateHUD() {
+    document.getElementById("lvlText").innerText = currentLevel;
+    document.getElementById("moveText").innerText = moves;
+    document.getElementById("scoreText").innerText = totalScore;
+}
+
+function restartLevel() { loadLevel(currentLevel); }
+function nextLevel() { currentLevel++; loadLevel(currentLevel); }
+
+// লিডারবোর্ডে স্কোর সেভ ও প্রদর্শন
+function saveScoreToLeaderboard() {
+    let lb = JSON.parse(localStorage.getItem("reflectx_leaderboard") || "[]");
+    let existing = lb.find(p => p.name.toLowerCase() === playerName.toLowerCase());
+    if (existing) {
+        if (totalScore > existing.score) {
+            existing.score = totalScore;
+            existing.level = currentLevel;
+        }
+    } else {
+        lb.push({ name: playerName, score: totalScore, level: currentLevel });
+    }
+    lb.sort((a, b) => b.score - a.score);
+    localStorage.setItem("reflectx_leaderboard", JSON.stringify(lb.slice(0, 15)));
+}
+
+function saveAndExit() {
+    if (totalScore > 0) saveScoreToLeaderboard();
+    showScreen('menuScreen');
+}
+
+function renderLeaderboard() {
+    const container = document.getElementById("lbContainer");
+    let lb = JSON.parse(localStorage.getItem("reflectx_leaderboard") || "[]");
+    if (lb.length === 0) {
+        container.innerHTML = "<p style='color:#94a3b8; padding:15px;'>এখনও কোনো স্কোর জমা পড়েনি!</p>";
+        return;
+    }
+    container.innerHTML = lb.map((item, idx) => `
+        <div class="lb-row">
+            <span>#${idx + 1} ${item.name} (লেভেল ${item.level})</span>
+            <span>${item.score} পয়েন্ট</span>
+        </div>
+    `).join("");
+}
+</script>
+</body>
+</html>
